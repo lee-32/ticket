@@ -7,7 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;900&display=swap');
+        /* 1번 요청: 모바일 환경에서 100% 적용되는 공식 Pretendard 폰트 CDN으로 교체 */
+        @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
         body { font-family: 'Pretendard', sans-serif; -webkit-tap-highlight-color: transparent; }
         .aspect-3-4 { aspect-ratio: 3 / 4; }
         
@@ -24,13 +25,16 @@
             box-sizing: border-box;
         }
         
+        /* 3번 요청: 날짜/시간 입력칸만 좌우 패딩을 12px로 줄여 모바일 겹침 방지 */
         input[type="date"], input[type="time"] {
             display: flex;
             align-items: center;
+            padding: 0 12px !important; 
         }
 
+        /* 7번 요청: 감상평(textarea) 높이 증가 (140px -> 200px) */
         textarea { 
-            height: 140px !important; 
+            height: 200px !important; 
             padding: 16px 20px !important; 
             resize: none;
         }
@@ -49,7 +53,6 @@
         }
         .poster-upload:active { transform: scale(0.98); }
         
-        /* 로고 전용 900 폰트 스타일 */
         .logo-font { font-weight: 900; }
     </style>
 </head>
@@ -65,6 +68,10 @@
         var filterYear = '전체';
         var filterCategory = '전체';
         var formData = { category: '공연', title: '', image: '', date: '', time: '', location: '', seat: '', companions: '', rating: 0, review: '' };
+        
+        // 수정 모드를 확인하기 위한 변수 추가
+        var isEditing = false;
+        var editingRecordId = null;
 
         // --- 2. UI 제어 함수 ---
         function setView(view, index = null) {
@@ -113,7 +120,30 @@
         }
 
         function setRating(val) { formData.rating = val; render(); }
-        function resetFormData() { formData = { category: '공연', title: '', image: '', date: '', time: '', location: '', seat: '', companions: '', rating: 0, review: '' }; }
+        function resetFormData() { 
+            formData = { category: '공연', title: '', image: '', date: '', time: '', location: '', seat: '', companions: '', rating: 0, review: '' }; 
+            isEditing = false;
+            editingRecordId = null;
+        }
+
+        // 6번 요청: 수정하기 기능 함수
+        function editRecord() {
+            formData = { ...records[selectedRecordIndex] };
+            isEditing = true;
+            editingRecordId = formData.id;
+            setView('add'); // 작성 폼으로 이동하되 정보는 유지됨
+        }
+
+        // 8번 요청: 이미지 모달창 열기/닫기
+        function openImageModal(imgSrc) {
+            if(!imgSrc || imgSrc === 'undefined') return;
+            const modal = document.getElementById('imageModal');
+            document.getElementById('modalImage').src = imgSrc;
+            modal.classList.remove('hidden');
+        }
+        function closeImageModal() {
+            document.getElementById('imageModal').classList.add('hidden');
+        }
 
         // --- 3. 렌더링 엔진 ---
         function render() {
@@ -121,7 +151,6 @@
             if (!app) return;
             
             if (currentView === 'list') {
-                // 필터 적용 로직
                 const years = ['전체', ...new Set(records.map(r => new Date(r.date).getFullYear().toString()).filter(y => y !== 'NaN'))].sort((a,b) => b-a);
                 const filteredRecords = records.filter(r => {
                     const yMatch = filterYear === '전체' || (r.date && r.date.startsWith(filterYear));
@@ -141,9 +170,9 @@
                         const originalIndex = records.indexOf(r);
                         let currentYear = r.date ? r.date.split('-')[0] : '연도 미상';
                         
-                        // 연도가 바뀔 때마다 구분선(헤더) 추가
+                        // 2번 요청: 연도 간격 대폭 축소 (mt-6 mb-2 -> mt-4 mb-2)
                         if (currentYear !== lastYear) {
-                            listContent += `<div class="col-span-full mt-6 mb-2 border-b-2 border-gray-100 pb-2"><h2 class="text-xl font-black text-gray-800">${currentYear}년</h2></div>`;
+                            listContent += `<div class="col-span-full mt-4 mb-2 border-b-2 border-gray-100 pb-1"><h2 class="text-xl font-black text-gray-800">${currentYear}년</h2></div>`;
                             lastYear = currentYear;
                         }
                         
@@ -164,7 +193,8 @@
 
                 app.innerHTML = `
                     <div class="max-w-4xl mx-auto p-4 pb-24 text-left">
-                        <header class="flex justify-between items-center mb-6 py-4">
+                        <!-- 2번 요청: 로고, 필터 영역 마진(간격) 축소 (mb-6, py-4 -> mb-3, py-2 등) -->
+                        <header class="flex justify-between items-center mb-3 py-2">
                             <h1 class="text-3xl logo-font text-blue-700 tracking-tighter uppercase">
                                 tickets
                             </h1>
@@ -173,8 +203,7 @@
                             </div>
                         </header>
                         
-                        <!-- 필터 영역 추가 -->
-                        <div class="flex gap-2 mb-6">
+                        <div class="flex gap-2 mb-4">
                             <div class="relative w-auto inline-block">
                                 <select onchange="filterYear=this.value; render()" class="h-10 px-4 py-1 pr-10 text-sm border border-gray-200 bg-gray-50 rounded-full text-gray-700 font-medium cursor-pointer outline-none w-auto">
                                     ${years.map(y => `<option value="${y}" ${filterYear === y ? 'selected' : ''}>${y === '전체' ? '모든 연도' : y + '년'}</option>`).join('')}
@@ -200,7 +229,7 @@
                     <div class="max-w-md mx-auto p-5 pb-24 text-left">
                         <header class="flex items-center gap-3 mb-8">
                             <button onclick="setView('list')" class="p-1 -ml-2"><i data-lucide="arrow-left"></i></button>
-                            <h1 class="text-xl font-bold">새 기록</h1>
+                            <h1 class="text-xl font-bold">${isEditing ? '기록 수정하기' : '새 기록'}</h1>
                         </header>
                         
                         <div class="space-y-5">
@@ -221,7 +250,7 @@
                                     ${categories.map(c => `<option value="${c}" ${formData.category === c ? 'selected' : ''}>${c}</option>`).join('')}
                                 </select>
 
-                                <div class="grid grid-cols-2 gap-3">
+                                <div class="grid grid-cols-2 gap-2">
                                     <input type="date" value="${formData.date}" oninput="formData.date=this.value">
                                     <input type="time" value="${formData.time}" oninput="formData.time=this.value">
                                 </div>
@@ -238,21 +267,28 @@
                                 <textarea placeholder="나만의 리뷰를 남겨주세요." oninput="formData.review=this.value" class="bg-gray-50 border-none">${formData.review}</textarea>
                             </div>
                             
-                            <button onclick="saveRecord()" class="w-full bg-blue-600 text-white h-14 rounded-xl font-bold shadow-md active:scale-[0.98] transition-all">저장하기</button>
+                            <button onclick="saveRecord()" class="w-full bg-blue-600 text-white h-14 rounded-xl font-bold shadow-md active:scale-[0.98] transition-all">${isEditing ? '수정 완료' : '저장하기'}</button>
                         </div>
                     </div>`;
             } else if (currentView === 'detail') {
                 const r = records[selectedRecordIndex];
                 if (!r) return setView('list');
                 app.innerHTML = `
-                    <div class="max-w-md mx-auto p-5 pb-24 text-left">
+                    <div class="max-w-md mx-auto p-5 pb-24 text-left relative">
                         <header class="flex justify-between items-center mb-6">
                             <button onclick="setView('list')" class="p-1 -ml-2"><i data-lucide="arrow-left"></i></button>
-                            <button onclick="deleteRecord(${selectedRecordIndex})" class="text-red-400 p-2"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                            <div class="flex gap-2">
+                                <!-- 6번 요청: 수정 버튼 추가 -->
+                                <button onclick="editRecord()" class="text-blue-500 p-2"><i data-lucide="pencil" class="w-5 h-5"></i></button>
+                                <button onclick="deleteRecord(${selectedRecordIndex})" class="text-red-400 p-2"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                            </div>
                         </header>
-                        <div class="aspect-3-4 bg-gray-100 rounded-2xl overflow-hidden mb-6 shadow-lg">
-                            ${r.image ? `<img src="${r.image}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-gray-300"><i data-lucide="image" class="w-12 h-12"></i></div>`}
+                        
+                        <!-- 8번 요청: 포스터 크기 대폭 축소 (w-1/2 max-w-[180px]로 고정) 및 클릭 이벤트 추가 -->
+                        <div class="w-1/2 max-w-[180px] mx-auto aspect-3-4 bg-gray-100 rounded-2xl overflow-hidden mb-6 shadow-md cursor-pointer hover:opacity-90 transition-opacity" onclick="openImageModal('${r.image}')">
+                            ${r.image ? `<img src="${r.image}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-gray-300"><i data-lucide="image" class="w-10 h-10"></i></div>`}
                         </div>
+                        
                         <div class="space-y-6 px-1">
                             <div>
                                 <div class="flex justify-between items-start mb-2">
@@ -265,12 +301,22 @@
                                 <div class="flex items-center gap-2 text-gray-600"><i data-lucide="calendar" class="w-4 h-4 text-blue-500"></i> ${r.date}</div>
                                 <div class="flex items-center gap-2 text-gray-600"><i data-lucide="clock" class="w-4 h-4 text-blue-500"></i> ${r.time || '-'}</div>
                                 <div class="col-span-2 flex items-center gap-2 text-gray-600"><i data-lucide="map-pin" class="w-4 h-4 text-blue-500"></i> ${r.location || '정보 없음'}</div>
-                                <div class="col-span-2 flex items-center gap-2 text-gray-600"><i data-lucide="tag" class="w-4 h-4 text-blue-500"></i> ${r.seat || '정보 없음'}</div>
-                                <div class="col-span-2 flex items-center gap-2 text-gray-600"><i data-lucide="users" class="w-4 h-4 text-blue-500"></i> ${r.companions || '정보 없음'}</div>
+                                
+                                <!-- 4번 요청: 좌석 정보 빈칸일 때 '-' 표시 -->
+                                <div class="col-span-2 flex items-center gap-2 text-gray-600"><i data-lucide="tag" class="w-4 h-4 text-blue-500"></i> ${r.seat || '-'}</div>
+                                
+                                <!-- 5번 요청: 동행인 빈칸일 때 '혼자 관람' 표시 -->
+                                <div class="col-span-2 flex items-center gap-2 text-gray-600"><i data-lucide="users" class="w-4 h-4 text-blue-500"></i> ${r.companions || '혼자 관람'}</div>
                             </div>
                             <div>
                                 <p class="text-gray-700 leading-relaxed whitespace-pre-wrap text-[15px]">${r.review || '리뷰가 없습니다.'}</p>
                             </div>
+                        </div>
+
+                        <!-- 8번 요청: 이미지 확대 팝업 모달창 (숨겨져 있다가 클릭 시 나타남) -->
+                        <div id="imageModal" class="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center hidden" onclick="closeImageModal()">
+                            <button class="absolute top-6 right-6 text-white p-2" onclick="closeImageModal()"><i data-lucide="x" class="w-8 h-8"></i></button>
+                            <img id="modalImage" src="" class="max-w-[90%] max-h-[85vh] object-contain rounded-md shadow-2xl">
                         </div>
                     </div>`;
             }
@@ -280,9 +326,10 @@
         window.onload = () => render();
     </script>
 
+    <!-- 6번 요청 반영: updateDoc 추가 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAjc-26fLvFZg6S6gWKvl0_4OvTQq5D6DU",
@@ -313,13 +360,22 @@
 
         initRealtimeUpdates();
 
+        // 6번 요청: 새로 저장뿐만 아니라 '수정' 기능도 동작하도록 로직 고도화
         window.saveRecord = async function() {
             if (!window.formData.title || !window.formData.date) return alert('제목과 날짜는 필수입니다.');
             try {
-                await addDoc(collection(db, collectionName), { 
-                    ...window.formData, 
-                    createdAt: Date.now() 
-                });
+                if (window.isEditing && window.editingRecordId) {
+                    const docRef = doc(db, collectionName, window.editingRecordId);
+                    await updateDoc(docRef, {
+                        ...window.formData,
+                        updatedAt: Date.now()
+                    });
+                } else {
+                    await addDoc(collection(db, collectionName), { 
+                        ...window.formData, 
+                        createdAt: Date.now() 
+                    });
+                }
                 window.resetFormData();
                 window.setView('list');
             } catch (error) {
