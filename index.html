@@ -45,17 +45,6 @@
         .poster-upload:active { transform: scale(0.98); }
         
         .logo-font { font-weight: 900; }
-
-        /* 로딩 애니메이션 */
-        .loader {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #2563eb;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-white text-gray-900">
@@ -74,22 +63,39 @@
         var isEditing = false;
         var editingRecordId = null;
 
-        // --- 2. 데이터 백업 기능 ---
+        // --- 2. 헬퍼 함수 ---
         window.downloadBackup = function() {
-            if (records.length === 0) {
-                alert("백업할 데이터가 없습니다.");
-                return;
-            }
-            
+            if (records.length === 0) return alert("백업할 데이터가 없습니다.");
             const dataStr = JSON.stringify(records, null, 2);
             const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-            
             const exportFileDefaultName = `tickets_backup_${new Date().toISOString().slice(0,10)}.json`;
-            
             const linkElement = document.createElement('a');
             linkElement.setAttribute('href', dataUri);
             linkElement.setAttribute('download', exportFileDefaultName);
             linkElement.click();
+        }
+
+        window.getDisplayTitle = function(r) {
+            // 스포츠 카테고리는 상대팀, 스코어, 승패로 제목을 구성
+            if (r.category === '스포츠') {
+                let res = [];
+                if (r.opponent) res.push(r.opponent);
+                if (r.score) res.push(r.score);
+                if (r.matchResult) res.push(`[${r.matchResult}]`);
+                return res.length > 0 ? res.join(' ') : '스포츠 기록';
+            }
+            return r.title || '제목 없음';
+        }
+
+        window.updateTime = function(type, val) {
+            let h = formData.time ? formData.time.split(':')[0] : '';
+            let m = formData.time ? formData.time.split(':')[1] : '';
+            if (type === 'hour') h = val;
+            if (type === 'minute') m = val;
+            if (h && !m) m = '00';
+            if (!h && m) h = '00';
+            formData.time = (h && m) ? `${h}:${m}` : '';
+            render();
         }
 
         // --- 3. UI 제어 함수 ---
@@ -125,7 +131,7 @@
         }
 
         window.handleMultiplePhotoUpload = function(event) {
-            const files = Array.from(event.target.files).slice(0, 2); // 최대 2장만 가져옴
+            const files = Array.from(event.target.files).slice(0, 2);
             if (files.length > 0) formData.photo1 = '';
             if (files.length > 1) formData.photo2 = '';
 
@@ -213,16 +219,30 @@
                     return yMatch && cMatch;
                 });
 
+                // 연도별 개수 파악
+                const yearCounts = {};
+                filteredRecords.forEach(r => {
+                    let y = r.date ? r.date.split('-')[0] : '연도 미상';
+                    yearCounts[y] = (yearCounts[y] || 0) + 1;
+                });
+
+                const totalCount = filteredRecords.length;
                 let listContent = '';
-                if (filteredRecords.length === 0) {
+
+                if (totalCount === 0) {
                     listContent = `<div class="col-span-full py-20 text-center text-gray-400 border border-dashed border-gray-200 rounded-2xl"><p class="text-sm">기록이 없습니다.</p></div>`;
                 } else {
                     let lastYear = null;
                     filteredRecords.forEach((r) => {
                         const originalIndex = records.indexOf(r);
                         let currentYear = r.date ? r.date.split('-')[0] : '연도 미상';
+                        
                         if (currentYear !== lastYear) {
-                            listContent += `<div class="col-span-full mt-4 mb-2 border-b-2 border-gray-100 pb-1"><h2 class="text-xl font-black text-gray-800">${currentYear}년</h2></div>`;
+                            listContent += `
+                                <div class="col-span-full mt-4 mb-2 border-b-2 border-gray-100 pb-1 flex items-baseline gap-2">
+                                    <h2 class="text-xl font-black text-gray-800">${currentYear}년</h2>
+                                    <span class="text-sm font-bold text-blue-600">(${yearCounts[currentYear]}개)</span>
+                                </div>`;
                             lastYear = currentYear;
                         }
                         listContent += `
@@ -232,12 +252,12 @@
                                     <div class="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded backdrop-blur-md uppercase font-bold tracking-wider">${r.category}</div>
                                 </div>
                                 <div class="mt-2.5 px-0.5">
-                                    <h3 class="font-bold truncate text-gray-900 text-sm">${r.title}</h3>
-                                    <div class="flex items-center justify-between mt-0.5">
-                                        <p class="text-[11px] text-gray-400">${r.date}</p>
+                                    <h3 class="font-bold truncate text-gray-900 text-xs">${getDisplayTitle(r)}</h3>
+                                    <div class="flex items-center justify-between mt-1">
+                                        <p class="text-[10px] text-gray-400">${r.date}</p>
                                         <div class="flex items-center gap-0.5">
-                                            <svg class="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-                                            <span class="text-[10px] font-bold text-gray-500">${Number(r.rating || 0).toFixed(1)}</span>
+                                            <svg class="w-2.5 h-2.5 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                                            <span class="text-[9px] font-bold text-gray-500">${Number(r.rating || 0).toFixed(1)}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -259,17 +279,20 @@
                             </div>
                         </header>
                         
-                        <div class="flex gap-2 mb-4">
-                            <select onchange="filterYear=this.value; render()" class="h-10 px-4 py-1 pr-10 text-sm border border-gray-200 bg-gray-50 rounded-full text-gray-700 font-medium cursor-pointer outline-none w-auto">
-                                ${years.map(y => `<option value="${y}" ${filterYear === y ? 'selected' : ''}>${y === '전체' ? '모든 연도' : y + '년'}</option>`).join('')}
-                            </select>
-                            <select onchange="filterCategory=this.value; render()" class="h-10 px-4 py-1 pr-10 text-sm border border-gray-200 bg-gray-50 rounded-full text-gray-700 font-medium cursor-pointer outline-none w-auto">
-                                <option value="전체" ${filterCategory === '전체' ? 'selected' : ''}>모든 카테고리</option>
-                                ${categories.map(c => `<option value="${c}" ${filterCategory === c ? 'selected' : ''}>${c}</option>`).join('')}
-                            </select>
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="flex gap-2">
+                                <select onchange="filterYear=this.value; render()" class="h-9 px-3 py-1 pr-8 text-xs border border-gray-200 bg-gray-50 rounded-full text-gray-700 font-medium cursor-pointer outline-none w-auto">
+                                    ${years.map(y => `<option value="${y}" ${filterYear === y ? 'selected' : ''}>${y === '전체' ? '모든 연도' : y + '년'}</option>`).join('')}
+                                </select>
+                                <select onchange="filterCategory=this.value; render()" class="h-9 px-3 py-1 pr-8 text-xs border border-gray-200 bg-gray-50 rounded-full text-gray-700 font-medium cursor-pointer outline-none w-auto">
+                                    <option value="전체" ${filterCategory === '전체' ? 'selected' : ''}>모든 카테고리</option>
+                                    ${categories.map(c => `<option value="${c}" ${filterCategory === c ? 'selected' : ''}>${c}</option>`).join('')}
+                                </select>
+                            </div>
+                            <span class="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">총 ${totalCount}개</span>
                         </div>
 
-                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div class="grid grid-cols-3 md:grid-cols-4 gap-3">
                             ${listContent}
                         </div>
                         <button onclick="resetFormData(); setView('add')" class="fixed bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-all z-50">
@@ -277,6 +300,21 @@
                         </button>
                     </div>`;
             } else if (currentView === 'add') {
+                let timeHour = formData.time ? formData.time.split(':')[0] : '';
+                let timeMinute = formData.time ? formData.time.split(':')[1] : '';
+
+                let hourOptions = '<option value="">시 선택</option>';
+                for(let i=0; i<24; i++) {
+                    let h = i.toString().padStart(2, '0');
+                    hourOptions += `<option value="${h}" ${timeHour === h ? 'selected' : ''}>${h}시</option>`;
+                }
+                
+                let minuteOptions = '<option value="">분 선택</option>';
+                for(let i=0; i<60; i+=10) {
+                    let m = i.toString().padStart(2, '0');
+                    minuteOptions += `<option value="${m}" ${timeMinute === m ? 'selected' : ''}>${m}분</option>`;
+                }
+
                 app.innerHTML = `
                     <div class="max-w-md mx-auto p-5 pb-24 text-left">
                         <header class="flex items-center gap-3 mb-8">
@@ -296,15 +334,22 @@
                             </div>
 
                             <div class="space-y-3">
-                                <input type="text" placeholder="제목 *" value="${formData.title}" oninput="formData.title=this.value" class="focus:border-blue-500">
+                                <!-- 스포츠일 경우 제목 입력 숨김 -->
+                                ${formData.category !== '스포츠' ? `
+                                    <input type="text" placeholder="제목 *" value="${formData.title}" oninput="formData.title=this.value" class="focus:border-blue-500">
+                                ` : ''}
                                 
                                 <select onchange="formData.category=this.value; render();">
                                     ${categories.map(c => `<option value="${c}" ${formData.category === c ? 'selected' : ''}>${c}</option>`).join('')}
                                 </select>
 
-                                <div class="grid grid-cols-2 gap-3">
+                                <div class="flex flex-col gap-3">
                                     <input type="date" value="${formData.date}" oninput="formData.date=this.value">
-                                    <input type="time" value="${formData.time}" step="600" oninput="formData.time=this.value">
+                                    <!-- 10분 단위 선택을 위한 Select 박스 -->
+                                    <div class="flex gap-2">
+                                        <select onchange="updateTime('hour', this.value)" class="w-1/2">${hourOptions}</select>
+                                        <select onchange="updateTime('minute', this.value)" class="w-1/2">${minuteOptions}</select>
+                                    </div>
                                 </div>
 
                                 <input type="text" placeholder="장소" value="${formData.location}" oninput="formData.location=this.value" class="focus:border-blue-500">
@@ -317,11 +362,12 @@
                                 
                                 ${formData.category === '스포츠' ? `
                                     <div class="space-y-3 p-4 bg-gray-50 border border-gray-100 rounded-xl mt-2">
-                                        <input type="text" placeholder="상대팀" value="${formData.opponent || ''}" oninput="formData.opponent=this.value" class="bg-white">
+                                        <p class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">스포츠 기록</p>
+                                        <input type="text" placeholder="상대팀 (예: SSG 랜더스) *" value="${formData.opponent || ''}" oninput="formData.opponent=this.value" class="bg-white">
                                         <div class="grid grid-cols-2 gap-3">
-                                            <input type="text" placeholder="스코어" value="${formData.score || ''}" oninput="formData.score=this.value" class="bg-white">
+                                            <input type="text" placeholder="스코어 (예: 3:2)" value="${formData.score || ''}" oninput="formData.score=this.value" class="bg-white">
                                             <select onchange="formData.matchResult=this.value" class="bg-white">
-                                                <option value="">결과</option>
+                                                <option value="">결과 선택</option>
                                                 <option value="승" ${formData.matchResult === '승' ? 'selected' : ''}>승리</option>
                                                 <option value="무" ${formData.matchResult === '무' ? 'selected' : ''}>무승부</option>
                                                 <option value="패" ${formData.matchResult === '패' ? 'selected' : ''}>패배</option>
@@ -360,7 +406,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <button onclick="saveRecord()" class="w-full bg-blue-600 text-white h-14 rounded-xl font-bold shadow-md active:scale-[0.98] transition-all">완료</button>
+                            <button onclick="saveRecord()" class="w-full bg-blue-600 text-white h-14 rounded-xl font-bold shadow-md active:scale-[0.98] transition-all mt-4">${isEditing ? '수정 완료' : '저장하기'}</button>
                         </div>
                     </div>`;
             } else if (currentView === 'detail') {
@@ -386,7 +432,7 @@
                                     <span class="text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded uppercase">${r.category}</span>
                                     ${renderStars(r.rating || 0)}
                                 </div>
-                                <h1 class="text-2xl font-black text-gray-900 leading-tight">${r.title}</h1>
+                                <h1 class="text-xl font-black text-gray-900 leading-tight">${getDisplayTitle(r)}</h1>
                             </div>
                             
                             <div class="grid grid-cols-2 gap-y-4 py-6 border-y border-gray-50 text-sm">
@@ -401,19 +447,6 @@
                                 <div class="col-span-2 flex items-center gap-2 text-gray-600"><i data-lucide="users" class="w-4 h-4 text-blue-500"></i> ${r.companions || '혼자 관람'}</div>
                             </div>
                             
-                            ${r.category === '스포츠' ? `
-                                <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">경기 결과</p>
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-bold text-gray-800 text-lg">VS ${r.opponent || '상대팀 미상'}</span>
-                                        <div class="flex gap-3 items-center">
-                                            <span class="text-gray-700 font-bold">${r.score || '-'}</span>
-                                            ${r.matchResult ? `<span class="px-2 py-1 rounded-md text-xs font-black tracking-wider ${r.matchResult === '승' ? 'bg-blue-100 text-blue-700' : r.matchResult === '패' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700'}">${r.matchResult}</span>` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-                            ` : ''}
-
                             <p class="text-gray-700 leading-relaxed whitespace-pre-wrap text-[15px]">${r.review || '리뷰가 없습니다.'}</p>
                             
                             ${r.photo1 || r.photo2 ? `
@@ -469,7 +502,10 @@
         initRealtimeUpdates();
 
         window.saveRecord = async function() {
-            if (!window.formData.title || !window.formData.date) return alert('제목과 날짜는 필수입니다.');
+            if (window.formData.category !== '스포츠' && !window.formData.title) return alert('제목은 필수입니다.');
+            if (window.formData.category === '스포츠' && !window.formData.opponent) return alert('상대팀 입력은 필수입니다.');
+            if (!window.formData.date) return alert('날짜는 필수입니다.');
+
             try {
                 if (window.isEditing && window.editingRecordId) {
                     await updateDoc(doc(db, collectionName, window.editingRecordId), { ...window.formData, updatedAt: Date.now() });
