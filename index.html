@@ -24,7 +24,6 @@
             box-sizing: border-box;
         }
         
-        /* 세로 배치로 변경하며 패딩을 기본값으로 복구 */
         input[type="date"], input[type="time"] {
             display: flex;
             align-items: center;
@@ -64,8 +63,8 @@
         var categories = ['공연', '전시', '스포츠', '기타'];
         var filterYear = '전체';
         var filterCategory = '전체';
-        // 스포츠 전용 데이터 필드(opponent, score, matchResult) 추가
-        var formData = { category: '공연', title: '', image: '', date: '', time: '', location: '', seat: '', companions: '', rating: 0, review: '', opponent: '', score: '', matchResult: '' };
+        // 추가 사진 데이터를 위한 photo1, photo2 필드 추가
+        var formData = { category: '공연', title: '', image: '', date: '', time: '', location: '', seat: '', companions: '', rating: 0, review: '', opponent: '', score: '', matchResult: '', photo1: '', photo2: '' };
         
         var isEditing = false;
         var editingRecordId = null;
@@ -102,16 +101,39 @@
             }
         }
 
-        // 0.5점 단위 별점 계산 로직
+        // 추가 사진용 업로드 함수 (크기를 더 작게 압축)
+        window.handlePhotoUpload = function(event, fieldName) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const max_size = 500; // 용량 확보를 위해 최대 500px로 제한
+                        if (width > height) { if (width > max_size) { height *= max_size / width; width = max_size; } }
+                        else { if (height > max_size) { width *= max_size / height; height = max_size; } }
+                        canvas.width = width; canvas.height = height;
+                        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                        formData[fieldName] = canvas.toDataURL('image/jpeg', 0.5); // 화질 50% 압축
+                        render();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
         window.handleStarClick = function(event, index) {
             const rect = event.currentTarget.getBoundingClientRect();
             const x = event.clientX - rect.left;
-            const isHalf = x < rect.width / 2; // 클릭 위치가 왼쪽 절반이면 0.5점
+            const isHalf = x < rect.width / 2;
             formData.rating = isHalf ? index - 0.5 : index;
             render();
         }
 
-        // 0.5점 렌더링을 지원하는 커스텀 SVG 별점 생성 함수
         function renderStars(rating, interactive = false) {
             let starsHtml = `<div class="flex items-center gap-2"><div class="flex gap-1">`;
             for (let i = 1; i <= 5; i++) {
@@ -132,7 +154,7 @@
         }
 
         window.resetFormData = function() { 
-            formData = { category: '공연', title: '', image: '', date: '', time: '', location: '', seat: '', companions: '', rating: 0, review: '', opponent: '', score: '', matchResult: '' }; 
+            formData = { category: '공연', title: '', image: '', date: '', time: '', location: '', seat: '', companions: '', rating: 0, review: '', opponent: '', score: '', matchResult: '', photo1: '', photo2: '' }; 
             isEditing = false;
             editingRecordId = null;
         }
@@ -184,7 +206,6 @@
                             lastYear = currentYear;
                         }
                         
-                        // 홈 화면 별점 표시 추가
                         listContent += `
                             <div onclick="setView('detail', ${originalIndex})" class="cursor-pointer">
                                 <div class="aspect-3-4 bg-gray-100 rounded-xl overflow-hidden shadow-sm relative">
@@ -299,9 +320,24 @@
                                 </div>
                                 
                                 <textarea placeholder="나만의 리뷰를 남겨주세요." oninput="formData.review=this.value" class="bg-gray-50 border-none">${formData.review}</textarea>
+                                
+                                <div class="mt-4 pt-4 border-t border-gray-100">
+                                    <p class="text-[12px] font-bold text-gray-500 mb-3 px-1">추억 사진 추가 (선택, 최대 2장)</p>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <label class="w-full aspect-square bg-gray-50 rounded-xl overflow-hidden relative border border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors">
+                                            ${formData.photo1 ? `<img src="${formData.photo1}" class="w-full h-full object-cover">` : `<i data-lucide="camera" class="text-gray-300 w-5 h-5 mb-1"></i><span class="text-[10px] text-gray-400 font-bold">사진 1</span>`}
+                                            <input type="file" accept="image/*" onchange="handlePhotoUpload(event, 'photo1')" class="hidden">
+                                        </label>
+                                        <label class="w-full aspect-square bg-gray-50 rounded-xl overflow-hidden relative border border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors">
+                                            ${formData.photo2 ? `<img src="${formData.photo2}" class="w-full h-full object-cover">` : `<i data-lucide="camera" class="text-gray-300 w-5 h-5 mb-1"></i><span class="text-[10px] text-gray-400 font-bold">사진 2</span>`}
+                                            <input type="file" accept="image/*" onchange="handlePhotoUpload(event, 'photo2')" class="hidden">
+                                        </label>
+                                    </div>
+                                </div>
+
                             </div>
                             
-                            <button onclick="saveRecord()" class="w-full bg-blue-600 text-white h-14 rounded-xl font-bold shadow-md active:scale-[0.98] transition-all">${isEditing ? '수정 완료' : '저장하기'}</button>
+                            <button onclick="saveRecord()" class="w-full bg-blue-600 text-white h-14 rounded-xl font-bold shadow-md active:scale-[0.98] transition-all mt-4">${isEditing ? '수정 완료' : '저장하기'}</button>
                         </div>
                     </div>`;
             } else if (currentView === 'detail') {
@@ -358,6 +394,16 @@
                             <div>
                                 <p class="text-gray-700 leading-relaxed whitespace-pre-wrap text-[15px]">${r.review || '리뷰가 없습니다.'}</p>
                             </div>
+                            
+                            ${r.photo1 || r.photo2 ? `
+                                <div class="pt-6 border-t border-gray-50">
+                                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Photos</p>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        ${r.photo1 ? `<img src="${r.photo1}" onclick="openImageModal('${r.photo1}')" class="w-full aspect-square object-cover rounded-xl shadow-sm cursor-pointer hover:opacity-90 transition-opacity">` : ''}
+                                        ${r.photo2 ? `<img src="${r.photo2}" onclick="openImageModal('${r.photo2}')" class="w-full aspect-square object-cover rounded-xl shadow-sm cursor-pointer hover:opacity-90 transition-opacity">` : ''}
+                                    </div>
+                                </div>
+                            ` : ''}
                         </div>
 
                         <div id="imageModal" class="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center hidden" onclick="closeImageModal()">
