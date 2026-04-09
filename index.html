@@ -76,13 +76,20 @@
         }
 
         window.getDisplayTitle = function(r) {
-            // 스포츠 카테고리는 상대팀, 스코어, 승패로 제목을 구성
+            // 스포츠 카테고리 전용 양식 적용
             if (r.category === '스포츠') {
-                let res = [];
-                if (r.opponent) res.push(r.opponent);
-                if (r.score) res.push(r.score);
-                if (r.matchResult) res.push(`[${r.matchResult}]`);
-                return res.length > 0 ? res.join(' ') : '스포츠 기록';
+                let opponentStr = r.opponent ? `VS ${r.opponent}` : 'VS 상대팀 미상';
+                let resultHtml = '';
+                
+                if (r.matchResult) {
+                    // 승리-빨강, 패배-파랑, 무승부-회색 네모 배경 스타일 적용
+                    let bgColor = 'bg-gray-500'; 
+                    if (r.matchResult === '승') bgColor = 'bg-red-500';
+                    else if (r.matchResult === '패') bgColor = 'bg-blue-500';
+                    
+                    resultHtml = `<span class="inline-block ml-1.5 px-1.5 py-0.5 rounded-sm text-[10px] font-bold text-white leading-none ${bgColor} align-middle">${r.matchResult}</span>`;
+                }
+                return `${opponentStr}${resultHtml}`;
             }
             return r.title || '제목 없음';
         }
@@ -252,7 +259,7 @@
                                     <div class="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded backdrop-blur-md uppercase font-bold tracking-wider">${r.category}</div>
                                 </div>
                                 <div class="mt-2.5 px-0.5">
-                                    <h3 class="font-bold truncate text-gray-900 text-xs">${getDisplayTitle(r)}</h3>
+                                    <h3 class="font-bold truncate text-gray-900 text-xs flex items-center">${getDisplayTitle(r)}</h3>
                                     <div class="flex items-center justify-between mt-1">
                                         <p class="text-[10px] text-gray-400">${r.date}</p>
                                         <div class="flex items-center gap-0.5">
@@ -432,7 +439,7 @@
                                     <span class="text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded uppercase">${r.category}</span>
                                     ${renderStars(r.rating || 0)}
                                 </div>
-                                <h1 class="text-xl font-black text-gray-900 leading-tight">${getDisplayTitle(r)}</h1>
+                                <h1 class="text-xl font-black text-gray-900 leading-tight flex items-center">${getDisplayTitle(r)}</h1>
                             </div>
                             
                             <div class="grid grid-cols-2 gap-y-4 py-6 border-y border-gray-50 text-sm">
@@ -447,6 +454,24 @@
                                 <div class="col-span-2 flex items-center gap-2 text-gray-600"><i data-lucide="users" class="w-4 h-4 text-blue-500"></i> ${r.companions || '혼자 관람'}</div>
                             </div>
                             
+                            ${r.category === '스포츠' ? `
+                                <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">경기 결과</p>
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-bold text-gray-800 text-lg">VS ${r.opponent || '상대팀 미상'}</span>
+                                        <div class="flex gap-3 items-center">
+                                            <span class="text-gray-700 font-bold">${r.score || '-'}</span>
+                                            ${r.matchResult ? `
+                                                <span class="px-2 py-1 rounded-sm text-xs font-black text-white tracking-wider 
+                                                    ${r.matchResult === '승' ? 'bg-red-500' : r.matchResult === '패' ? 'bg-blue-500' : 'bg-gray-500'}">
+                                                    ${r.matchResult}
+                                                </span>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+
                             <p class="text-gray-700 leading-relaxed whitespace-pre-wrap text-[15px]">${r.review || '리뷰가 없습니다.'}</p>
                             
                             ${r.photo1 || r.photo2 ? `
